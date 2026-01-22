@@ -5,3 +5,8 @@ test:
 lint:
     ruff check
     ruff format
+use_ollama:
+    cp .env.ollama .env
+    ollama run llama2
+use_openai:
+    cp .env.openai .env

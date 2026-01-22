@@ -1,27 +1,39 @@
-from typing import Union
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
-from openai import (
-    InternalServerError,
-    RateLimitError,
-    APIError,
-)
-from tenacity import (
-    retry,
-    stop_after_delay,
-    stop_after_attempt,
-    wait_random_exponential,
-    retry_if_exception_type,
-)
-
-from app.schemas.AssistantResponse import AssistantResponse
-from app.schemas.Question import Question
-from settings import Settings
 from app.clients.llm import send_question
+from app.schemas import Question, AssistantResponse, ErrorResponse
+from app.schemas.llm.errors import (
+    LLMRateLimitedError,
+    LLMInternalError,
+    LLMPermissionDeniedError,
+)
+from settings import Settings
 
 settings = Settings()
 app = FastAPI()
+
+
+@app.exception_handler(LLMRateLimitedError)
+async def llm_rate_limited_error_handler(request: Request, exc: LLMRateLimitedError):
+    return ErrorResponse(
+        status_code=exc.status_code, detail=exc.detail, retry_after=exc.retry_after
+    )
+
+
+@app.exception_handler(LLMInternalError)
+async def llm_client_error_handler(request: Request, exc: LLMInternalError):
+    return ErrorResponse(
+        status_code=exc.status_code, detail=exc.detail, retry_after=exc.retry_after
+    )
+
+
+@app.exception_handler(LLMPermissionDeniedError)
+async def llm_permission_denied_error_handler(
+    request: Request, exc: LLMPermissionDeniedError
+):
+    return ErrorResponse(
+        status_code=exc.status_code, detail=exc.detail, retry_after=exc.retry_after
+    )
 
 
 @app.get("/")
@@ -29,29 +41,7 @@ def read_root():
     return RedirectResponse(url="/docs", status_code=308)
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-
-
-@retry(
-    stop=(stop_after_delay(10) | stop_after_attempt(3)),
-    wait=wait_random_exponential(min=1, max=60),
-    retry=(
-        retry_if_exception_type(InternalServerError)
-        | retry_if_exception_type(RateLimitError)
-    ),
-)
 @app.post("/question")
 async def read_question(request_body: Question) -> AssistantResponse:
-    res: str
-    try:
-        res = await send_question(request_body)
-    except RateLimitError as e:
-        return AssistantResponse(text=e.response.text)
-    except InternalServerError as e:
-        return AssistantResponse(text=e.response.text)
-    except APIError as e:
-        return AssistantResponse(text=e.body.__str__())
-
+    res = await send_question(request_body)
     return AssistantResponse(text=res)
