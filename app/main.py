@@ -15,25 +15,19 @@ app = FastAPI()
 
 @app.exception_handler(LLMRateLimitedError)
 async def llm_rate_limited_error_handler(request: Request, exc: LLMRateLimitedError):
-    return ErrorResponse(
-        status_code=exc.status_code, detail=exc.detail, retry_after=exc.retry_after
-    )
+    return ErrorResponse(status_code=429, detail=str(exc), retry_after=exc.retry_after)
 
 
 @app.exception_handler(LLMInternalError)
 async def llm_client_error_handler(request: Request, exc: LLMInternalError):
-    return ErrorResponse(
-        status_code=exc.status_code, detail=exc.detail, retry_after=exc.retry_after
-    )
+    return ErrorResponse(status_code=503, detail=str(exc), retry_after=exc.retry_after)
 
 
 @app.exception_handler(LLMPermissionDeniedError)
 async def llm_permission_denied_error_handler(
     request: Request, exc: LLMPermissionDeniedError
 ):
-    return ErrorResponse(
-        status_code=exc.status_code, detail=exc.detail, retry_after=exc.retry_after
-    )
+    return ErrorResponse(status_code=403, detail=str(exc), retry_after=exc.retry_after)
 
 
 @app.get("/")

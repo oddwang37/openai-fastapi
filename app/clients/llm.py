@@ -28,10 +28,7 @@ llm_client = AsyncOpenAI(api_key=settings.LLM_API_KEY, base_url=settings.LLM_BAS
 @retry(
     stop=(stop_after_delay(10) | stop_after_attempt(3)),
     wait=wait_random_exponential(min=1, max=60),
-    retry=(
-        retry_if_exception_type(LLMInternalError)
-        | retry_if_exception_type(LLMRateLimitedError)
-    ),
+    retry=(retry_if_exception_type(LLMRateLimitedError)),
 )
 async def send_question(question: Question) -> str:
     system_msg: ChatCompletionSystemMessageParam = {
@@ -54,10 +51,10 @@ async def send_question(question: Question) -> str:
         retry_after: str = "0"
         if e.response:
             retry_after = e.response.headers.get("x-ratelimit-reset-tokens", "1")
-        raise LLMRateLimitedError(message=str(e), retry_after=retry_after)
+        raise LLMRateLimitedError(str(e), retry_after=retry_after)
+    except PermissionDeniedError as e:
+        print(e)
+        raise LLMPermissionDeniedError("Restricted region")
     except APIError as e:
         print(e)
         raise LLMInternalError(f"Internal OpenAI error: {str(e)}")
-    except PermissionDeniedError as e:
-        print(e)
-        raise LLMPermissionDeniedError()

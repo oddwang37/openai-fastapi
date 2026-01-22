@@ -1,9 +1,6 @@
-from fastapi import HTTPException
-
-
-class LLMBaseError(HTTPException):
-    def __init__(self, status_code: int, message: str, retry_after: str):
-        super().__init__(status_code, detail=message)
+class LLMBaseError(Exception):
+    def __init__(self, detail: str, retry_after: str = 10):
+        super().__init__(detail)
         self.retry_after = retry_after
 
 
